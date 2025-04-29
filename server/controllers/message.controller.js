@@ -22,26 +22,23 @@ export async function sendMessage(req, res) {
             chat = new ChatModel({
                 name: "New Chat",
                 members: [
-                    { user: senderId, role: 'admin' },  // Set the sender as admin
-                    { user: recipientId, role: 'member' }  // Set the recipient as a member
+                    { user: senderId, role: 'admin' },
+                    { user: recipientId, role: 'member' }
                 ],
-                groupImage: "",  // You can provide a default image or leave it empty
-            });
-            await chat.save();  // Save the new chat
+                groupImage: "",
+            })
+            await chat.save()
         }
 
-        // Create the new message
         const newMessage = new messageModel({
             sender: senderId,
-            chat: chat._id,  // Use the _id of the newly created or existing chat
+            chat: chat._id,
             message: message,
             status: "sending"
         });
 
-        // Save the new message
         const savedMessage = await newMessage.save();
 
-        // Add the message to the chat's messages array
         chat.messages.push(savedMessage._id);
         await chat.save();
 
