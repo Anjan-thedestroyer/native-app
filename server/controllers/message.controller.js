@@ -1,0 +1,178 @@
+import ChatModel from "../models/chat.model.js";
+import messageModel from "../models/message.model.js";
+
+export async function sendMessage(req, res) {
+    try {
+        const senderId = req.userId;
+        const { chatId, message, recipientId } = req.body;
+
+        if (!message || !recipientId) {
+            return res.status(400).json({
+                message: "Chat ID, recipient ID, and message content are required.",
+                success: false,
+                error: true
+            });
+        }
+
+        let chat = await ChatModel.findOne({
+            'members.user': { $all: [senderId, recipientId] }  // Match both sender and recipient in members
+        });
+
+        if (!chat) {
+            chat = new ChatModel({
+                name: "New Chat",
+                members: [
+                    { user: senderId, role: 'admin' },  // Set the sender as admin
+                    { user: recipientId, role: 'member' }  // Set the recipient as a member
+                ],
+                groupImage: "",  // You can provide a default image or leave it empty
+            });
+            await chat.save();  // Save the new chat
+        }
+
+        // Create the new message
+        const newMessage = new messageModel({
+            sender: senderId,
+            chat: chat._id,  // Use the _id of the newly created or existing chat
+            message: message,
+            status: "sending"
+        });
+
+        // Save the new message
+        const savedMessage = await newMessage.save();
+
+        // Add the message to the chat's messages array
+        chat.messages.push(savedMessage._id);
+        await chat.save();
+
+        return res.status(200).json({
+            message: "Message sent successfully.",
+            success: true,
+            data: savedMessage
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: error.message || error,
+            success: false,
+            error: true
+        });
+    }
+}
+
+export async function getMessages(req, res) {
+    try {
+        const { chatId } = req.query;
+
+        if (!chatId) {
+            return res.status(400).json({
+                message: "Chat ID is required to fetch messages.",
+                success: false,
+                error: true
+            });
+        }
+
+        // Fetch all messages from a specific chat
+        const messages = await messageModel.find({ chat: chatId }).populate("sender", "username").sort({ createdAt: 1 });
+
+        return res.status(200).json({
+            message: "Messages fetched successfully.",
+            success: true,
+            data: messages
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: error.message || error,
+            success: false,
+            error: true
+        });
+    }
+}
+export async function updateMessageStatus(req, res) {
+    try {
+        const { messageId } = req.params; // Get the message ID from params
+        const { status } = req.body;  // The new status (e.g., 'seen', 'sent')
+
+        if (!status || !messageId) {
+            return res.status(400).json({
+                message: "Message ID and status are required.",
+                success: false,
+                error: true
+            });
+        }
+
+        if (!["sending", "sent", "seen"].includes(status)) {
+            return res.status(400).json({
+                message: "Invalid status.",
+                success: false,
+                error: true
+            });
+        }
+
+        // Update message status
+        const updatedMessage = await messageModel.findByIdAndUpdate(
+            messageId,
+            { status: status },
+            { new: true }
+        );
+
+        if (!updatedMessage) {
+            return res.status(404).json({
+                message: "Message not found.",
+                success: false,
+                error: true
+            });
+        }
+
+        return res.status(200).json({
+            message: "Message status updated successfully.",
+            success: true,
+            data: updatedMessage
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: error.message || error,
+            success: false,
+            error: true
+        });
+    }
+}
+export async function deleteMessage(req, res) {
+    try {
+        const { messageId } = req.params;
+
+        if (!messageId) {
+            return res.status(400).json({
+                message: "Message ID is required.",
+                success: false,
+                error: true
+            });
+        }
+
+        // Delete the message by ID
+        const deletedMessage = await messageModel.findByIdAndDelete(messageId);
+
+        if (!deletedMessage) {
+            return res.status(404).json({
+                message: "Message not found.",
+                success: false,
+                error: true
+            });
+        }
+
+        return res.status(200).json({
+            message: "Message deleted successfully.",
+            success: true,
+            data: deletedMessage
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: error.message || error,
+            success: false,
+            error: true
+        });
+    }
+}
