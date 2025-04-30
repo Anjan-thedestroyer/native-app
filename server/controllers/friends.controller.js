@@ -1,9 +1,9 @@
+import FriendListModel from "../models/friendList.model.js";
 import FriendReqModel from "../models/friends.model.js";
 
-// Send a Friend Request
 export async function sendFriendReq(req, res) {
     try {
-        const userid = req.userId; // Corrected from request.userId
+        const userid = req.userId;
         const { recipient } = req.body;
 
         if (!recipient) {
@@ -13,6 +13,14 @@ export async function sendFriendReq(req, res) {
                 error: true
             });
         }
+        if (recipient === userid) {
+            return res.status(400).json({
+                message: "You cannot send a friend request to yourself.",
+                success: false,
+                error: true
+            });
+        }
+
 
         const payload = {
             requester: userid,
@@ -39,10 +47,10 @@ export async function sendFriendReq(req, res) {
     }
 }
 
-// Get all Friend Requests by User ID
+// Get all Friend Requests
 export async function getAllByIDReq(req, res) {
     try {
-        const userid = req.userId; // Corrected
+        const userid = req.userId;
 
         if (!userid) {
             return res.status(400).json({
@@ -57,7 +65,7 @@ export async function getAllByIDReq(req, res) {
                 { requester: userid },
                 { recipient: userid }
             ]
-        }); // Get all where user is involved
+        })
 
         return res.status(200).json({
             message: 'Friend requests fetched successfully.',
@@ -75,7 +83,6 @@ export async function getAllByIDReq(req, res) {
     }
 }
 
-// Delete a Friend Request
 export async function deleteReqById(req, res) {
     try {
         const userid = req.userId;
@@ -148,7 +155,7 @@ export async function acceptReq(req, res) {
         const newFriendship = new FriendListModel({
             user1: recipient,
             user2: userid
-        });
+        }).populate('user1 user2')
 
         await newFriendship.save();
 

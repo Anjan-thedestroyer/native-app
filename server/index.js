@@ -8,35 +8,44 @@ import morgan from 'morgan'
 import helmet from 'helmet'
 import connectDB from './config/connectDB.js'
 import userRouter from './route/user.route.js'
+import chatRoute from './route/chat.route.js'
+import friendRouter from './route/friends.route.js'
+import ListRouter from './route/friendList.route.js'
+import messRouter from './route/message.route.js'
 
 
-const app=express()
+const app = express()
 app.use(cors({
-    credentials:true,
-    origin : process.env.FRONTEND_URL
+    credentials: true,
+    origin: process.env.FRONTEND_URL
 }))
 
 app.use(express.json())
 app.use(cookieParser())
 app.use(morgan())
 app.use(helmet({
-    crossOriginResourcePolicy:false
+    crossOriginResourcePolicy: false
 }))
 
 const PORT = 8080 || process.env.PORT
-app.get("/",(req,res)=>{
+app.get("/", (req, res) => {
     res.json({
-        message:"server is running"+ PORT
+        message: "server is running" + PORT
     })
 
 })
 
-app.use('/api/user',userRouter)
+app.use('/chat/user', userRouter)
+app.use('/chat/chat', chatRoute)
+app.use('/chat/friendList', ListRouter)
+app.use('/chat/friends', friendRouter)
+app.use('/chat/message', messRouter)
+
 connectDB()
 
-app.listen(PORT,()=>{
-    console.log("server is running",PORT);
-    
+app.listen(PORT, () => {
+    console.log("server is running", PORT);
+
 })
 
 

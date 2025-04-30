@@ -1,69 +1,78 @@
-import { View, Text, StyleSheet, ImageBackground, TextInput, Pressable } from 'react-native'
-import React, { useContext } from 'react'
-import homeImage from '../assets/home-image.jpg'
-import { GlobalContext } from '../context'
-const Homepage = () => {
-    const { showLoginView, setShowLoginView } = useContext(GlobalContext)
+import React from "react";
+import { StyleSheet, View, Text, ScrollView, Pressable } from "react-native";
+import { Svg, Path } from "react-native-svg";
+
+export default function Homepage() {
+    const chatList = [
+        { id: 1, name: "User1", message: "Sent a message", time: "03:25" },
+        { id: 2, name: "User2", message: "Hello!", time: "03:26" },
+        { id: 3, name: "User3", message: "How are you?", time: "03:27" },
+        { id: 4, name: "User4", message: "Let's meet", time: "03:28" },
+        { id: 5, name: "User5", message: "Sure!", time: "03:29" },
+    ];
+
     return (
-        <View
-            style={styles.mainWrapper}
-        >
-            <ImageBackground style={styles.image} source={homeImage} />
-            <View style={styles.content}>
-                {
+        <View style={styles.container}>
+            <ScrollView contentContainerStyle={styles.chatList}>
+                {chatList.map((chat) => (
+                    <Pressable
+                        key={chat.id}
+                        style={({ pressed }) => [
+                            styles.chatItem,
+                            pressed && { backgroundColor: "black" },
+                        ]}
 
-                    showLoginView ?
-                        <View>
-                            <View>
-                                <Text>Enter your name</Text>
-                                <TextInput
-                                    autoCorrect={false}
-                                    placeholder='Enter your name'
-                                    onChangeText={(value) => setCurrentUserName(value)}
-                                    style={styles.loginInput}
-                                    value={CurrentUserName}
-                                />
-                            </View>
-                            <View>
-                                <Pressable>
-                                    <View>
-                                        <Text>Register</Text>
-                                    </View>
-
-                                </Pressable>
-                            </View>
-                            <View>
-                                <Pressable>
-                                    <View>
-                                        <Text>login</Text>
-                                    </View>
-
-                                </Pressable>
-                            </View>
-
+                    >
+                        <Svg width="60" height="60" viewBox="0 0 77 71">
+                            <Path
+                                d="M76.5 35.5C76.5 55.1 59 71 38 71S0 55.1 0 35.5 17 0 38 0s38.5 15.9 38.5 35.5Z"
+                                fill="#D9D9D9"
+                            />
+                        </Svg>
+                        <View style={styles.chatTextContainer}>
+                            <Text style={styles.userName}>{chat.name}</Text>
+                            <Text style={styles.message}>{chat.message}</Text>
                         </View>
-                        :
-                        <View>
-
-                        </View>
-                }
-
-            </View>
+                        <Text style={styles.time}>{chat.time}</Text>
+                    </Pressable>
+                ))}
+            </ScrollView>
         </View>
-    )
+    );
 }
 
-export default Homepage
 const styles = StyleSheet.create({
-    mainWrapper: {
-        flex: 1
+    container: {
+        flex: 1,
+        backgroundColor: "#FFF",
+        paddingTop: 50,
     },
-    image: {
-        flex: 2,
-        justifyContent: "center",
-        width: '100%',
+    chatList: {
+        paddingHorizontal: 16,
     },
-    content: {
-        flex: 1
-    }
-})
+    chatItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderColor: "#eee",
+    },
+    chatTextContainer: {
+        flex: 1,
+        marginLeft: 12,
+    },
+    userName: {
+        fontSize: 18,
+        fontWeight: "bold",
+        color: "#333",
+    },
+    message: {
+        fontSize: 14,
+        color: "#555",
+    },
+    time: {
+        fontSize: 12,
+        color: "#888",
+        marginLeft: 10,
+    },
+});

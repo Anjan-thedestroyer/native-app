@@ -71,7 +71,6 @@ export async function unfriend(req, res) {
             });
         }
 
-        // Find and delete the friendship where the two users are matched
         const deletedFriendship = await FriendListModel.findOneAndDelete({
             $or: [
                 { user1: userId, user2: friendId },

@@ -1,4 +1,4 @@
-import ChatModel from "../models/chat.model";
+import ChatModel from "../models/chat.model.js";
 
 export async function addMembers(req, res) {
     try {
@@ -148,7 +148,6 @@ export async function quitChat(req, res) {
         });
     }
 }
-import ChatModel from '../models/ChatModel.js'; // Adjust path if needed
 
 export async function changeRole(req, res) {
     try {
@@ -174,7 +173,7 @@ export async function changeRole(req, res) {
         }
 
         // Check if the requesting user is an admin
-        const requestingUser = chat.members.find(m => m.userId === userId);
+        const requestingUser = chat.members.find(m => m.user === userId);
         if (!requestingUser || requestingUser.role !== 'admin') {
             return res.status(403).json({
                 message: 'Only admins can change roles in the chat',
@@ -184,7 +183,7 @@ export async function changeRole(req, res) {
         }
 
         // Find the member to update
-        const memberToUpdate = chat.members.find(m => m.userId === member);
+        const memberToUpdate = chat.members.find(m => m.user === member);
         if (!memberToUpdate) {
             return res.status(404).json({
                 message: 'Member not found in the chat',

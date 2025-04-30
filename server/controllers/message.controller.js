@@ -6,7 +6,7 @@ export async function sendMessage(req, res) {
         const senderId = req.userId;
         const { chatId, message, recipientId } = req.body;
 
-        if (!message || !recipientId) {
+        if (!message || !recipientId || !chatId) {
             return res.status(400).json({
                 message: "Chat ID, recipient ID, and message content are required.",
                 success: false,
@@ -15,8 +15,13 @@ export async function sendMessage(req, res) {
         }
 
         let chat = await ChatModel.findOne({
-            'members.user': { $all: [senderId, recipientId] }  // Match both sender and recipient in members
+            $and: [
+                { members: { $elemMatch: { user: senderId } } },
+                { members: { $elemMatch: { user: recipientId } } }
+            ],
+            'members.2': { $exists: false } // optional: ensures 2-person chat only
         });
+
 
         if (!chat) {
             chat = new ChatModel({
@@ -34,7 +39,7 @@ export async function sendMessage(req, res) {
             sender: senderId,
             chat: chat._id,
             message: message,
-            status: "sending"
+            status: "sent"
         });
 
         const savedMessage = await newMessage.save();
@@ -88,7 +93,7 @@ export async function getMessages(req, res) {
 }
 export async function updateMessageStatus(req, res) {
     try {
-        const { messageId } = req.params; // Get the message ID from params
+        const { messageId } = req.params;
         const { status } = req.body;  // The new status (e.g., 'seen', 'sent')
 
         if (!status || !messageId) {
@@ -138,17 +143,28 @@ export async function updateMessageStatus(req, res) {
 }
 export async function deleteMessage(req, res) {
     try {
+        const senderId = req.userId;
         const { messageId } = req.params;
 
-        if (!messageId) {
+        if (!messageId || !senderId) {
             return res.status(400).json({
-                message: "Message ID is required.",
+                message: "Message ID and auth is required.",
                 success: false,
                 error: true
             });
         }
-
-        // Delete the message by ID
+        const check = await messageModel.findById(messageId)
+        if (check.sender.toString() !== senderId.toString()) {
+            return res.status(300).json({
+                message: "only sender can delete message.",
+                success: false,
+                error: true
+            })
+        }
+        await ChatModel.updateMany(
+            { messages: messageId },
+            { $pull: { messages: messageId } }
+        );
         const deletedMessage = await messageModel.findByIdAndDelete(messageId);
 
         if (!deletedMessage) {
