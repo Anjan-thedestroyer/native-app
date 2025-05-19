@@ -1,5 +1,6 @@
 import FriendListModel from "../models/friendList.model.js";
 import FriendReqModel from "../models/friends.model.js";
+import UserModel from "../models/user.model.js";
 
 export async function sendFriendReq(req, res) {
     try {
@@ -127,7 +128,7 @@ export async function deleteReqById(req, res) {
 
 export async function acceptReq(req, res) {
     try {
-        const userid = req.userId;
+        const userId = req.userId;
         const { recipient } = req.body;
 
         if (!recipient) {
@@ -138,8 +139,9 @@ export async function acceptReq(req, res) {
             });
         }
 
+        // Update friend request status
         const updatedRequest = await FriendReqModel.findOneAndUpdate(
-            { requester: recipient, recipient: userid, status: "sent" },
+            { requester: recipient, recipient: userId, status: "sent" },
             { status: "accepted", isFriend: true },
             { new: true }
         );
@@ -152,12 +154,21 @@ export async function acceptReq(req, res) {
             });
         }
 
-        const newFriendship = new FriendListModel({
+        // Create friendship
+        const newFriendship = await new FriendListModel({
             user1: recipient,
-            user2: userid
-        }).populate('user1 user2')
+            user2: userId
+        }).save();
 
-        await newFriendship.save();
+        // Add friendship ID to both users' `friends` array
+        await UserModel.updateOne(
+            { _id: userId },
+            { $addToSet: { friends: newFriendship._id } }
+        );
+        await UserModel.updateOne(
+            { _id: recipient },
+            { $addToSet: { friends: newFriendship._id } }
+        );
 
         return res.status(200).json({
             message: "Friend request accepted and friendship created successfully.",

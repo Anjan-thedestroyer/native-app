@@ -1,22 +1,29 @@
 import ChatModel from "../models/chat.model.js";
 
+// Helper to emit to room
+function emitToChat(io, chatID, event, payload) {
+    io.to(chatID).emit(event, payload);
+}
+
 export async function addMembers(req, res) {
+    const io = req.app.get("io");
     try {
         const { member, chatID } = req.body;
         if (!member) {
             return res.status(400).json({
-                message: "Please agive the members iD",
+                message: "Please provide the member ID",
                 error: true,
                 success: false
-            })
+            });
         }
-        const newMember = await ChatModel.findByIdAndUpdate(chatID,
-            { $push: { members: { user: member, role: 'member' } } },
+
+        const updatedChat = await ChatModel.findByIdAndUpdate(
+            chatID,
+            { $push: { members: { user: member, role: "member" } } },
             { new: true }
-        )
+        );
 
-
-        if (!newMember) {
+        if (!updatedChat) {
             return res.status(404).json({
                 message: "Chat not found",
                 error: true,
@@ -24,13 +31,17 @@ export async function addMembers(req, res) {
             });
         }
 
+        emitToChat(io, chatID, "member-added", {
+            chatID,
+            member
+        });
+
         return res.status(200).json({
             message: "Member added successfully",
-            data: newMember,
+            data: updatedChat,
             error: false,
             success: true
         });
-
     } catch (error) {
         console.error(error);
         return res.status(500).json({
@@ -40,7 +51,9 @@ export async function addMembers(req, res) {
         });
     }
 }
+
 export async function removeMembers(req, res) {
+    const io = req.app.get("io");
     try {
         const userId = req.userId;
         const { chatID, member } = req.body;
@@ -63,7 +76,7 @@ export async function removeMembers(req, res) {
         }
 
         const requestingUser = chat.members.find(m => m.user === userId);
-        if (!requestingUser || requestingUser.role !== 'admin') {
+        if (!requestingUser || requestingUser.role !== "admin") {
             return res.status(403).json({
                 message: "Only admins can remove members from the chat",
                 error: true,
@@ -80,9 +93,8 @@ export async function removeMembers(req, res) {
             });
         }
 
-        // Prevent removing last admin
-        if (memberToRemove.role === 'admin') {
-            const adminCount = chat.members.filter(m => m.role === 'admin').length;
+        if (memberToRemove.role === "admin") {
+            const adminCount = chat.members.filter(m => m.role === "admin").length;
             if (adminCount === 1) {
                 return res.status(403).json({
                     message: "Cannot remove the last admin from the chat",
@@ -92,9 +104,13 @@ export async function removeMembers(req, res) {
             }
         }
 
-        // Remove member
-        chat.members = chat.members.filter(m => m.userId !== member);
+        chat.members = chat.members.filter(m => m.user !== member);
         await chat.save();
+
+        emitToChat(io, chatID, "member-removed", {
+            chatID,
+            member
+        });
 
         return res.status(200).json({
             message: "Member removed successfully",
@@ -102,7 +118,6 @@ export async function removeMembers(req, res) {
             error: false,
             success: true
         });
-
     } catch (error) {
         console.error(error);
         return res.status(500).json({
@@ -112,10 +127,13 @@ export async function removeMembers(req, res) {
         });
     }
 }
+
 export async function quitChat(req, res) {
+    const io = req.app.get("io");
     try {
         const userId = req.userId;
         const { chatID, member } = req.body;
+
         if (!chatID || !member) {
             return res.status(400).json({
                 message: "Please enter all required fields",
@@ -123,26 +141,36 @@ export async function quitChat(req, res) {
                 success: false
             });
         }
+
         if (userId !== member) {
-            return res.status(300).json({
-                message: "enter your own Id",
+            return res.status(403).json({
+                message: "You can only quit with your own ID",
                 error: true,
                 success: false
-            })
+            });
         }
-        const quit = await ChatModel.findByIdAndUpdate(chatID,
-            { $pull: { members: { uer: member } } },
+
+        const quitChat = await ChatModel.findByIdAndUpdate(
+            chatID,
+            { $pull: { members: { user: member } } },
             { new: true }
-        )
+        );
+
+        emitToChat(io, chatID, "member-quit", {
+            chatID,
+            member
+        });
+
         return res.status(200).json({
-            message: 'Group Quited successfully ',
+            message: "Group exited successfully",
+            data: quitChat,
             success: true,
             error: false
-        })
-
+        });
     } catch (error) {
+        console.error(error);
         return res.status(500).json({
-            message: "An error occurred while removing the member",
+            message: "An error occurred while quitting the group",
             error: true,
             success: false
         });
@@ -150,6 +178,7 @@ export async function quitChat(req, res) {
 }
 
 export async function changeRole(req, res) {
+    const io = req.app.get("io");
     try {
         const userId = req.userId;
         const { chatID, member, status } = req.body;
@@ -163,7 +192,6 @@ export async function changeRole(req, res) {
         }
 
         const chat = await ChatModel.findById(chatID);
-
         if (!chat) {
             return res.status(404).json({
                 message: "Chat not found",
@@ -172,21 +200,19 @@ export async function changeRole(req, res) {
             });
         }
 
-        // Check if the requesting user is an admin
         const requestingUser = chat.members.find(m => m.user === userId);
-        if (!requestingUser || requestingUser.role !== 'admin') {
+        if (!requestingUser || requestingUser.role !== "admin") {
             return res.status(403).json({
-                message: 'Only admins can change roles in the chat',
+                message: "Only admins can change roles in the chat",
                 error: true,
                 success: false
             });
         }
 
-        // Find the member to update
         const memberToUpdate = chat.members.find(m => m.user === member);
         if (!memberToUpdate) {
             return res.status(404).json({
-                message: 'Member not found in the chat',
+                message: "Member not found in the chat",
                 error: true,
                 success: false
             });
@@ -195,13 +221,18 @@ export async function changeRole(req, res) {
         memberToUpdate.role = status;
         await chat.save();
 
+        emitToChat(io, chatID, "role-changed", {
+            chatID,
+            member,
+            status
+        });
+
         return res.status(200).json({
             message: "Role updated successfully",
             data: chat,
             success: true,
             error: false
         });
-
     } catch (error) {
         console.error(error);
         return res.status(500).json({

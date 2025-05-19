@@ -1,4 +1,5 @@
 import FriendListModel from "../models/friendList.model.js";
+import UserModel from "../models/user.model.js";
 
 export async function listAllFriends(req, res) {
     try {
@@ -18,7 +19,7 @@ export async function listAllFriends(req, res) {
                 { user1: userId },
                 { user2: userId }
             ]
-        }).populate("user1 user2", "name email profilePhoto");
+        }).populate("user1 user2");
         // you can select fields you want
 
         if (!friends.length) {
@@ -91,6 +92,59 @@ export async function unfriend(req, res) {
             success: true,
             error: false,
             data: deletedFriendship
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: error.message || error,
+            success: false,
+            error: true
+        });
+    }
+}
+
+export async function getUserWithFriends(req, res) {
+    try {
+        const userId = req.userId;
+
+        const user = await UserModel.findById(userId).lean();
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found.",
+                success: false,
+                error: true
+            });
+        }
+
+        const friends = await FriendListModel.find({
+            $or: [
+                { user1: userId },
+                { user2: userId }
+            ]
+        }).populate("user1 user2");
+
+        const friendList = friends.map(friendship => {
+            const friend = (friendship.user1._id.toString() === userId)
+                ? friendship.user2
+                : friendship.user1;
+
+            return {
+                _id: friend._id,
+                name: friend.name,
+                email: friend.email,
+                profilePhoto: friend.profilePhoto
+            };
+        });
+
+        return res.status(200).json({
+            message: "User with friend list fetched successfully.",
+            success: true,
+            error: false,
+            data: {
+                ...user,
+                friends: friendList
+            }
         });
 
     } catch (error) {

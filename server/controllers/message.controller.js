@@ -1,56 +1,73 @@
 import ChatModel from "../models/chat.model.js";
 import messageModel from "../models/message.model.js";
 
+let io; // Declare IO instance holder
+
+// Function to set the IO instance from server
+export function setIO(ioInstance) {
+    io = ioInstance;
+}
+
+// ✅ Send Message
 export async function sendMessage(req, res) {
     try {
         const senderId = req.userId;
-        const { chatId, message, recipientId } = req.body;
+        const { recipientId, message } = req.body;
 
-        if (!message || !recipientId || !chatId) {
+        if (!recipientId || !message) {
             return res.status(400).json({
-                message: "Chat ID, recipient ID, and message content are required.",
+                message: "Recipient ID and message content are required.",
                 success: false,
                 error: true
             });
         }
 
+        // Find existing chat
         let chat = await ChatModel.findOne({
             $and: [
                 { members: { $elemMatch: { user: senderId } } },
                 { members: { $elemMatch: { user: recipientId } } }
             ],
-            'members.2': { $exists: false } // optional: ensures 2-person chat only
+            isGroup: false
         });
 
-
+        // Create new chat if it doesn't exist
         if (!chat) {
             chat = new ChatModel({
-                name: "New Chat",
+                name: "Private Chat",
                 members: [
                     { user: senderId, role: 'admin' },
                     { user: recipientId, role: 'member' }
                 ],
                 groupImage: "",
-            })
-            await chat.save()
+                isGroup: false
+            });
+            await chat.save();
         }
 
+        // Create and save new message
         const newMessage = new messageModel({
             sender: senderId,
             chat: chat._id,
-            message: message,
+            message,
             status: "sent"
         });
 
         const savedMessage = await newMessage.save();
+        const populatedMessage = await savedMessage.populate("sender", "username");
 
+        // Update chat with new message
         chat.messages.push(savedMessage._id);
         await chat.save();
+
+        // Emit to sender and recipient
+        io.to(senderId).emit("receive-message", populatedMessage);
+        io.to(recipientId).emit("receive-message", populatedMessage);
 
         return res.status(200).json({
             message: "Message sent successfully.",
             success: true,
-            data: savedMessage
+            data: populatedMessage
         });
 
     } catch (error) {
@@ -62,9 +79,10 @@ export async function sendMessage(req, res) {
     }
 }
 
+// ✅ Get Messages
 export async function getMessages(req, res) {
     try {
-        const { chatId } = req.query;
+        const { chatId } = req.body;
 
         if (!chatId) {
             return res.status(400).json({
@@ -74,8 +92,10 @@ export async function getMessages(req, res) {
             });
         }
 
-        // Fetch all messages from a specific chat
-        const messages = await messageModel.find({ chat: chatId }).populate("sender", "username").sort({ createdAt: 1 });
+        const messages = await messageModel
+            .find({ chat: chatId })
+            .populate("sender", "username")
+            .sort({ createdAt: 1 });
 
         return res.status(200).json({
             message: "Messages fetched successfully.",
@@ -91,12 +111,14 @@ export async function getMessages(req, res) {
         });
     }
 }
+
+// ✅ Update Message Status
 export async function updateMessageStatus(req, res) {
     try {
         const { messageId } = req.params;
-        const { status } = req.body;  // The new status (e.g., 'seen', 'sent')
+        const { status } = req.body;
 
-        if (!status || !messageId) {
+        if (!messageId || !status) {
             return res.status(400).json({
                 message: "Message ID and status are required.",
                 success: false,
@@ -112,10 +134,9 @@ export async function updateMessageStatus(req, res) {
             });
         }
 
-        // Update message status
         const updatedMessage = await messageModel.findByIdAndUpdate(
             messageId,
-            { status: status },
+            { status },
             { new: true }
         );
 
@@ -126,6 +147,12 @@ export async function updateMessageStatus(req, res) {
                 error: true
             });
         }
+
+        // Notify participants of status update
+        io.to(updatedMessage.chat.toString()).emit("update-status", {
+            messageId: updatedMessage._id,
+            status: updatedMessage.status
+        });
 
         return res.status(200).json({
             message: "Message status updated successfully.",
@@ -141,6 +168,8 @@ export async function updateMessageStatus(req, res) {
         });
     }
 }
+
+// ✅ Delete Message
 export async function deleteMessage(req, res) {
     try {
         const senderId = req.userId;
@@ -153,27 +182,35 @@ export async function deleteMessage(req, res) {
                 error: true
             });
         }
-        const check = await messageModel.findById(messageId)
-        if (check.sender.toString() !== senderId.toString()) {
-            return res.status(300).json({
-                message: "only sender can delete message.",
-                success: false,
-                error: true
-            })
-        }
-        await ChatModel.updateMany(
-            { messages: messageId },
-            { $pull: { messages: messageId } }
-        );
-        const deletedMessage = await messageModel.findByIdAndDelete(messageId);
 
-        if (!deletedMessage) {
+        const check = await messageModel.findById(messageId);
+        if (!check) {
             return res.status(404).json({
                 message: "Message not found.",
                 success: false,
                 error: true
             });
         }
+
+        if (check.sender.toString() !== senderId.toString()) {
+            return res.status(403).json({
+                message: "Only sender can delete the message.",
+                success: false,
+                error: true
+            });
+        }
+
+        await ChatModel.updateMany(
+            { messages: messageId },
+            { $pull: { messages: messageId } }
+        );
+
+        const deletedMessage = await messageModel.findByIdAndDelete(messageId);
+
+        // Emit deletion event
+        io.to(check.chat.toString()).emit("deleted-message", {
+            messageId: deletedMessage._id
+        });
 
         return res.status(200).json({
             message: "Message deleted successfully.",
