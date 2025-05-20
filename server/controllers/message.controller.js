@@ -1,14 +1,12 @@
 import ChatModel from "../models/chat.model.js";
 import messageModel from "../models/message.model.js";
 
-let io; // Declare IO instance holder
+let io;
 
-// Function to set the IO instance from server
 export function setIO(ioInstance) {
     io = ioInstance;
 }
 
-// ✅ Send Message
 export async function sendMessage(req, res) {
     try {
         const senderId = req.userId;
@@ -22,7 +20,6 @@ export async function sendMessage(req, res) {
             });
         }
 
-        // Find existing chat
         let chat = await ChatModel.findOne({
             $and: [
                 { members: { $elemMatch: { user: senderId } } },
@@ -31,7 +28,6 @@ export async function sendMessage(req, res) {
             isGroup: false
         });
 
-        // Create new chat if it doesn't exist
         if (!chat) {
             chat = new ChatModel({
                 name: "Private Chat",
@@ -45,7 +41,6 @@ export async function sendMessage(req, res) {
             await chat.save();
         }
 
-        // Create and save new message
         const newMessage = new messageModel({
             sender: senderId,
             chat: chat._id,
@@ -54,13 +49,11 @@ export async function sendMessage(req, res) {
         });
 
         const savedMessage = await newMessage.save();
-        const populatedMessage = await savedMessage.populate("sender", "username");
+        const populatedMessage = await savedMessage.populate("sender");
 
-        // Update chat with new message
         chat.messages.push(savedMessage._id);
         await chat.save();
 
-        // Emit to sender and recipient
         io.to(senderId).emit("receive-message", populatedMessage);
         io.to(recipientId).emit("receive-message", populatedMessage);
 
@@ -79,7 +72,6 @@ export async function sendMessage(req, res) {
     }
 }
 
-// ✅ Get Messages
 export async function getMessages(req, res) {
     try {
         const { chatId } = req.body;
