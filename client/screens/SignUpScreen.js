@@ -1,12 +1,18 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native'
 import React, { useState } from 'react'
 import AuthInput from '../components/AuthInput'
+import { signUp } from '../utils/Api'
 const SignUpScreen = () => {
     const [name, setName] = useState('')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
-    const handleSign = () => {
-
+    const handleSign = async () => {
+        try {
+            res = await signUp(name, email, password)
+            Alert.alert("sign up successful, check your mail")
+        } catch (error) {
+            Alert.alert('Sign in failed ', error.message || "something went wrong")
+        }
     }
     return (
         <View style={styles.container}>

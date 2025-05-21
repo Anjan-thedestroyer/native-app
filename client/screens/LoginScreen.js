@@ -13,26 +13,21 @@ import {
     SafeAreaView
 } from 'react-native';
 import AuthInput from '../components/AuthInput';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loginUser } from '../utils/Api';
+import { loginUser } from '../utils/Api.js';
 
 const LoginScreen = ({ navigation }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
     const handleLogin = async () => {
-        if (!email || !password) {
-            Alert.alert('Error', 'Please enter both email and password');
-            return;
-        }
         try {
             const res = await loginUser(email, password);
-            const { accessToken, refreshToken } = res.data;
-            await AsyncStorage.setItem('accessToken', accessToken);
-            await AsyncStorage.setItem('refreshToken', refreshToken);
-        } catch (err) {
-            Alert.alert('Login Failed', err.message || 'Something went wrong');
+            Alert.alert('Login Successful', 'You have been logged in!');
+            navigation.replace('Home'); // or any route after login
+        } catch (error) {
+            Alert.alert('Login Failed', error.message || 'Something went wrong');
         }
+
     };
 
     return (
